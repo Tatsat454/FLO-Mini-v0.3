@@ -3,7 +3,7 @@ Readme · MD
  
 A small, 3D-printed helper robot that picks clothes up off the floor and drops them in its bin. It's built to help older people around the house.
  
-![FLO Mini v0.3 with the SO-101 arm](FLO_Mini_v0.3_SO101.png)
+![FLO Mini v0.3 with the SO-101 arm](3_Docs/images/FLO_Mini_v0.3_SO101.png)
  
 **Status: v0.3 prototype. The design is done; printing is next.**
  
@@ -22,11 +22,11 @@ A small, 3D-printed helper robot that picks clothes up off the floor and drops t
  
 | Assembled (from the print STLs) | Parts as they print |
 |---|---|
-| ![reassembled](stl_parts_reassembled.png) | ![parts](stl_parts_as_printed.png) |
+| ![reassembled](3_Docs/images/stl_parts_reassembled.png) | ![parts](3_Docs/images/stl_parts_as_printed.png) |
  
 | Front view | Other side |
 |---|---|
-| ![a](v03_a.png) | ![b](v03_b.png) |
+| ![a](3_Docs/images/v03_a.png) | ![b](3_Docs/images/v03_b.png) |
  
 *These are CAD renders. Photos of the real robot coming soon.*
  
