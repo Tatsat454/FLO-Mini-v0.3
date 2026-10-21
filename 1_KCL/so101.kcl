@@ -1,0 +1,42 @@
+// FLO Mini — SO-101 arm (v0.3): simple stand-in so you can see where it goes
+// Real arm: print the follower from github.com/TheRobotStudio/SO-ARM100 (STL/SO101/Follower).
+// It bolts to the 4 soHoles in the base with M3 x 25 screws, nuts under the plate.
+//
+// Want the real model here? In the Zoo DESKTOP app (imports don't work in the browser),
+// put "SO101 Assembly.stl" in this project folder and use instead of the blocks below:
+//   import "SO101 Assembly.stl" as so101Real
+//   so101Real
+//     |> rotate(yaw = 90deg, global = true)
+//     |> translate(x = soX0, y = soY0, z = baseTopZ - 0.4, global = true)
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+import * from "parameters.kcl"
+import block, roundedBlock, rodZ from "lib.kcl"
+
+blue = "#2f6db5"
+
+// the arm's base plate: 87 mm front-to-back, 111 mm wide, 17.5 mm tall
+soBase = roundedBlock(width = 87, depth = 111, height = 17.5, cornerR = 15)
+  |> translate(x = soX0 - 10.5, y = soY0, z = baseTopZ + 0.1, global = true)
+  |> appearance(color = blue, roughness = 60)
+
+// the shoulder-pan motor housing that rises out of the middle
+soHousing = block(width = 97, depth = 45, height = 40)
+  |> translate(x = soX0 - 5.5, y = soY0, z = baseTopZ + 17.8, global = true)
+  |> appearance(color = blue, roughness = 60)
+
+// 4 bolt markers so you can see they line up with the base holes
+fn boltMarker(p) {
+  return rodZ(dia = 5.5, length = 3)
+    |> translate(x = p[0], y = p[1], z = baseTopZ + 19.2, global = true)
+    |> appearance(color = "#c0c4c8", metalness = 80, roughness = 30)
+}
+
+[
+  soBase,
+  soHousing,
+  boltMarker(p = soHoles[0]),
+  boltMarker(p = soHoles[1]),
+  boltMarker(p = soHoles[2]),
+  boltMarker(p = soHoles[3])
+]

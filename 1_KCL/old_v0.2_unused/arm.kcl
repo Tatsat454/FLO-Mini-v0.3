@@ -1,0 +1,112 @@
+// FLO Mini — Step 3: shoulder tower + arm
+// Tower holds a DS3218 servo (slides in from the inner face, shaft points to +Y).
+// Arm is a 6 mm plate, 170 mm between the shoulder and the wrist servo (MG90S).
+// Change armPose in parameters.kcl to poseUp to see the arm over the bin.
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+import * from "parameters.kcl"
+import block, roundedBlock, rodY, rodZ, holeZ from "lib.kcl"
+
+// ---------- tower ----------
+towerX = shoulderX // 95, tower centre in X
+towerY0 = -50 // outer face
+seatY = -16.5 // inner face = DS3218 flange seat
+towerTopZ = shoulderZ + 25 // 215
+
+towerBody = block(width = 40, depth = seatY - towerY0, height = towerTopZ - baseTopZ - 1)
+  |> translate(x = towerX, y = (towerY0 + seatY) / 2, z = baseTopZ + 1, global = true)
+towerFeet = block(width = 40, depth = 58, height = 5)
+  |> translate(x = towerX, y = -33, z = baseTopZ, global = true)
+towerBlank = union([towerBody, towerFeet])
+
+towerCuts = [
+  // DS3218 body pocket (20 x 40), open on the inner face
+  block(width = 20.4, depth = 31, height = 40.4)
+    |> translate(x = towerX, y = seatY - 14.5, z = shoulderZ - 30.2, global = true),
+  // DS3218 flange screws
+  rodY(dia = 2.8, length = 16)
+    |> translate(x = towerX - 5, y = seatY, z = shoulderZ - 10 - 24.75, global = true),
+  rodY(dia = 2.8, length = 16)
+    |> translate(x = towerX + 5, y = seatY, z = shoulderZ - 10 - 24.75, global = true),
+  rodY(dia = 2.8, length = 16)
+    |> translate(x = towerX - 5, y = seatY, z = shoulderZ - 10 + 24.75, global = true),
+  rodY(dia = 2.8, length = 16)
+    |> translate(x = towerX + 5, y = seatY, z = shoulderZ - 10 + 24.75, global = true),
+  // servo cable exit on the outer face
+  rodY(dia = 10, length = 20)
+    |> translate(x = towerX, y = towerY0, z = baseTopZ + 25, global = true),
+  // feet bolts (match the base plate)
+  holeZ(x = towerBoltX[0], y = towerBoltY[0], z = baseTopZ + 2.5, dia = m3),
+  holeZ(x = towerBoltX[1], y = towerBoltY[0], z = baseTopZ + 2.5, dia = m3),
+  holeZ(x = towerBoltX[0], y = towerBoltY[1], z = baseTopZ + 2.5, dia = m3),
+  holeZ(x = towerBoltX[1], y = towerBoltY[1], z = baseTopZ + 2.5, dia = m3)
+]
+tower = subtract(towerBlank, tools = towerCuts)
+  |> appearance(color = "#f2f4f5", roughness = 60)
+
+// DS3218 servo body (reference, not printed)
+shoulderServo = block(width = 20, depth = 40.5, height = 40)
+  |> translate(x = towerX, y = -24.25, z = shoulderZ - 30, global = true)
+  |> appearance(color = "#33373b", roughness = 70)
+
+// ---------- arm plate ----------
+// Drawn flat in its own frame: shoulder at (0, 0), wrist at (armLength, 0).
+armHalfWidth = 16
+armSketch = sketch(on = XY) {
+  line1 = line(start = [var 0mm, var -16mm], end = [var 170mm, var -16mm])
+  arc1 = arc(start = [var 170mm, var -16mm], end = [var 170mm, var 16mm], center = [var 170mm, var 0mm])
+  coincident([line1.end, arc1.start])
+  line2 = line(start = [var 170mm, var 16mm], end = [var 0mm, var 16mm])
+  coincident([arc1.end, line2.start])
+  arc2 = arc(start = [var 0mm, var 16mm], end = [var 0mm, var -16mm], center = [var 0mm, var 0mm])
+  coincident([line2.end, arc2.start])
+  coincident([arc2.end, line1.start])
+  coincident([arc2.center, ORIGIN])
+  horizontal(line1)
+  horizontal(line2)
+  radius(arc1) == armHalfWidth
+  radius(arc2) == armHalfWidth
+  horizontalDistance([arc2.center, arc1.center]) == armLength
+}
+armRegion = region(segments = [armSketch.line1, armSketch.arc1])
+armBlank = extrude(armRegion, length = 6)
+hide(armSketch)
+
+// MG90S wrist servo: shaft 5.9 mm from the body end, body 22.8 x 12.2
+wristPocketX = armLength + 5.9 - 22.8 / 2
+armCuts = [
+  // DS3218 horn: centre clearance + 4 x M2.5 on a 14 mm circle (drill to match your horn)
+  rodZ(dia = 9, length = 20)
+    |> translate(z = 3, global = true),
+  rodZ(dia = 2.5, length = 20)
+    |> translate(x = 7, z = 3, global = true),
+  rodZ(dia = 2.5, length = 20)
+    |> translate(x = -7, z = 3, global = true),
+  rodZ(dia = 2.5, length = 20)
+    |> translate(y = 7, z = 3, global = true),
+  rodZ(dia = 2.5, length = 20)
+    |> translate(y = -7, z = 3, global = true),
+  // lightening slots
+  roundedBlock(width = 38, depth = 14, height = 20, cornerR = 6)
+    |> translate(x = 45, z = -7, global = true),
+  roundedBlock(width = 38, depth = 14, height = 20, cornerR = 6)
+    |> translate(x = 95, z = -7, global = true),
+  // wrist servo through-pocket + flange screws
+  block(width = 23.2, depth = 12.6, height = 20)
+    |> translate(x = wristPocketX, z = -7, global = true),
+  rodZ(dia = 2, length = 20)
+    |> translate(x = wristPocketX - 13.85, z = 3, global = true),
+  rodZ(dia = 2, length = 20)
+    |> translate(x = wristPocketX + 13.85, z = 3, global = true)
+]
+
+// Stand the plate up (thickness along Y, at y = -1 .. 5), swing it to armPose,
+// then move the shoulder onto the servo shaft.
+arm = subtract([armBlank], tools = armCuts)
+  |> rotate(roll = 90deg, global = true)
+  |> translate(y = 5, global = true)
+  |> rotate(pitch = -armPose, global = true)
+  |> translate(x = shoulderX, z = shoulderZ, global = true)
+  |> appearance(color = "#f2f4f5", roughness = 60)
+
+[tower, shoulderServo, arm]

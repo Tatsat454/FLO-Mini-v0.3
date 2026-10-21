@@ -1,0 +1,155 @@
+// FLO Mini — Step 5: bin, torso, back door
+// Bin: 118 x 106 x 150 open-top box, front-left beside the SO-101 arm (~1.9 L).
+// Torso: 90 x 180 x 250 shell, open at the bottom, holds the battery + electronics.
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+import * from "parameters.kcl"
+import block, roundedBlock, rodX, rodY, rodZ, holeZ from "lib.kcl"
+
+wall = 2.4
+
+// ================= BIN (v0.3: front-left, 118 x 106 x 150, ~1.9 L) =================
+binCenterX = (binX0 + binX1) / 2
+binCenterY = (binY0 + binY1) / 2
+binLen = binX1 - binX0
+binW = binY1 - binY0
+
+binOuter = roundedBlock(width = binLen, depth = binW, height = binHeight, cornerR = 10)
+  |> translate(x = binCenterX, y = binCenterY, z = baseTopZ, global = true)
+// 4 pegs drop into the base holes (stop 0.5 mm below the bin floor top)
+fn binPeg(p) {
+  return rodZ(dia = 6, length = 5)
+    |> translate(x = p[0], y = p[1], z = baseTopZ, global = true)
+}
+binBlank = union([
+  binOuter,
+  binPeg(p = binPegs[0]),
+  binPeg(p = binPegs[1]),
+  binPeg(p = binPegs[2]),
+  binPeg(p = binPegs[3])
+])
+
+// hollow it out: the cutter starts at the 3 mm floor and runs past the open top
+binInner = roundedBlock(
+  width = binLen - 2 * wall,
+  depth = binW - 2 * wall,
+  height = binHeight + 10,
+  cornerR = 10 - wall,
+)
+  |> translate(x = binCenterX, y = binCenterY, z = baseTopZ + 3, global = true)
+
+// finger holes in the front and back walls for carrying it
+fn fingerHole(x) {
+  return roundedBlock(width = 16, depth = 50, height = 20, cornerR = 7)
+    |> translate(z = -10, global = true)
+    |> rotate(pitch = 90deg, global = true)
+    |> translate(x = x, y = binCenterY, z = baseTopZ + binHeight - 18, global = true)
+}
+
+bin = subtract(binBlank, tools = [binInner, fingerHole(x = binX0), fingerHole(x = binX1)])
+  |> appearance(color = "#3cc8c0", roughness = 40)
+
+// ================= TORSO =================
+torsoCenterX = (torsoX0 + torsoX1) / 2 // -77
+torsoLen = torsoX1 - torsoX0 // 90
+torsoTop = baseTopZ + torsoHeight // 311
+
+torsoOuter = roundedBlock(width = torsoLen, depth = torsoWidth, height = torsoHeight, cornerR = 22)
+  |> translate(x = torsoCenterX, z = baseTopZ, global = true)
+// cutter pokes out of the bottom (open bottom), stops under a 2.4 mm roof
+torsoInner = roundedBlock(
+  width = torsoLen - 2 * wall,
+  depth = torsoWidth - 2 * wall,
+  height = torsoHeight - wall + 6,
+  cornerR = 22 - wall,
+)
+  |> translate(x = torsoCenterX, z = baseTopZ - 6, global = true)
+torsoShell = subtract([torsoOuter], tools = [torsoInner])
+
+// bolt tabs at the bottom, tucked into the rounded corners
+// (0.3 mm above the base so no faces line up)
+fn tab(x, y) {
+  return block(width = 16, depth = 16, height = 4)
+    |> translate(x = x, y = y, z = baseTopZ + 0.3, global = true)
+}
+// thick pad under the roof for the neck bolts
+neckPad = rodZ(dia = 64, length = 5)
+  |> translate(x = torsoCenterX, z = torsoTop - 4, global = true)
+
+torsoBlank = union(concat(
+  torsoShell,
+  items = [
+    tab(x = torsoTabX[0], y = torsoTabY),
+    tab(x = torsoTabX[0], y = -torsoTabY),
+    tab(x = torsoTabX[1], y = torsoTabY),
+    tab(x = torsoTabX[1], y = -torsoTabY),
+    neckPad
+  ],
+))
+
+ventZ = [
+  baseTopZ + 150,
+  baseTopZ + 164,
+  baseTopZ + 178,
+  baseTopZ + 192,
+  baseTopZ + 206
+]
+vents = map(
+  ventZ,
+  f = fn(@z) {
+    return block(width = 20, depth = 90, height = 5)
+      |> translate(x = torsoX1, z = z, global = true)
+  },
+)
+
+torsoCuts = [
+  // tab bolts
+  holeZ(x = torsoTabX[0], y = torsoTabY, z = baseTopZ + 2, dia = m3),
+  holeZ(x = torsoTabX[0], y = -torsoTabY, z = baseTopZ + 2, dia = m3),
+  holeZ(x = torsoTabX[1], y = torsoTabY, z = baseTopZ + 2, dia = m3),
+  holeZ(x = torsoTabX[1], y = -torsoTabY, z = baseTopZ + 2, dia = m3),
+  // neck cable hole + 3 neck bolts
+  holeZ(x = torsoCenterX, y = 0, z = torsoTop, dia = 22),
+  holeZ(x = torsoCenterX + 26, y = 0, z = torsoTop, dia = m3),
+  holeZ(x = torsoCenterX + 26 * cos(120deg), y = 26 * sin(120deg), z = torsoTop, dia = m3),
+  holeZ(x = torsoCenterX + 26 * cos(240deg), y = 26 * sin(240deg), z = torsoTop, dia = m3),
+  // rear service door opening
+  block(width = 20, depth = 130, height = 160)
+    |> translate(x = torsoX0, z = baseTopZ + 20, global = true),
+  // pilot holes for the back door screws (self-tapping M3)
+  rodX(dia = 2.5, length = 10)
+    |> translate(x = torsoX0, y = 60, z = baseTopZ + 14, global = true),
+  rodX(dia = 2.5, length = 10)
+    |> translate(x = torsoX0, y = -60, z = baseTopZ + 14, global = true),
+  rodX(dia = 2.5, length = 10)
+    |> translate(x = torsoX0, y = 60, z = baseTopZ + 186, global = true),
+  rodX(dia = 2.5, length = 10)
+    |> translate(x = torsoX0, y = -60, z = baseTopZ + 186, global = true),
+  // cable hole in the front, low down (SO-101 + sensor wires)
+  rodX(dia = 12, length = 20)
+    |> translate(x = torsoX1, y = -30, z = baseTopZ + 20, global = true),
+  // power switch on the left side
+  rodY(dia = 16, length = 20)
+    |> translate(x = torsoCenterX, y = torsoWidth / 2, z = baseTopZ + 40, global = true)
+]
+torso = subtract(torsoBlank, tools = concat(torsoCuts, items = vents))
+  |> appearance(color = "#f2f4f5", roughness = 60)
+
+// ================= BACK DOOR =================
+// 3 mm cover over the rear opening, 4 x M3 into the torso wall
+doorBlank = block(width = 3, depth = 140, height = 180)
+  |> translate(x = torsoX0 - 1.6, z = baseTopZ + 10, global = true)
+doorHoles = [
+  rodX(dia = m3, length = 10)
+    |> translate(x = torsoX0 - 1.6, y = 60, z = baseTopZ + 14, global = true),
+  rodX(dia = m3, length = 10)
+    |> translate(x = torsoX0 - 1.6, y = -60, z = baseTopZ + 14, global = true),
+  rodX(dia = m3, length = 10)
+    |> translate(x = torsoX0 - 1.6, y = 60, z = baseTopZ + 186, global = true),
+  rodX(dia = m3, length = 10)
+    |> translate(x = torsoX0 - 1.6, y = -60, z = baseTopZ + 186, global = true)
+]
+backDoor = subtract([doorBlank], tools = doorHoles)
+  |> appearance(color = "#3cc8c0", roughness = 50)
+
+[bin, torso, backDoor]

@@ -1,0 +1,200 @@
+// FLO Mini — Step 4: claw
+// Claw plate + 2 geared jaws (12 teeth, 24 mm pitch circle) + MG90S grip servo (reference).
+// The wrist servo keeps the claw pointing straight down in every arm pose.
+// Built in its own "claw frame": wrist axis at the origin, jaws hang toward -Z,
+// plate thickness along Y. Then it is moved to the end of the arm.
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+import * from "parameters.kcl"
+import block, rodY, rodZ from "lib.kcl"
+
+jawOpen = 15deg // 0deg = closed
+
+
+pivotX = 12 // jaw pivots at x = -12 and +12
+pivotZ = -30
+gearR = 12 // pitch radius (module 2, 12 teeth)
+
+
+// ---------- claw plate ----------
+plate = block(width = 56, depth = 3, height = 54)
+  |> translate(y = 27.5, z = -42, global = true)
+// spacer starts at y = 16, just above the wrist servo horn, and overlaps the plate
+spacer = block(width = 20, depth = 10.5, height = 13.5)
+  |> translate(y = 21.25, z = -2, global = true) // y = 16 -> 26.5
+plateBlank = union([plate, spacer])
+
+gripBodyX = -pivotX - 5.9 + 22.8 / 2 // MG90S shaft sits on the left pivot
+plateCuts = [
+  // wrist servo horn screws
+  rodY(dia = 2, length = 60)
+    |> translate(x = -5, z = 5, global = true),
+  rodY(dia = 2, length = 60)
+    |> translate(x = 5, z = 5, global = true),
+  // grip servo body pocket + flange screws
+  block(width = 23.2, depth = 12, height = 12.6)
+    |> translate(
+         x = gripBodyX,
+         y = 26,
+         z = pivotZ - 6.3,
+         global = true,
+       ),
+  rodY(dia = 2, length = 12)
+    |> translate(
+         x = gripBodyX - 13.85,
+         y = 27.5,
+         z = pivotZ,
+         global = true,
+       ),
+  rodY(dia = 2, length = 12)
+    |> translate(
+         x = gripBodyX + 13.85,
+         y = 27.5,
+         z = pivotZ,
+         global = true,
+       ),
+  // idler jaw pivot (M3 shoulder bolt)
+  rodY(dia = 3.3, length = 12)
+    |> translate(
+         x = pivotX,
+         y = 27.5,
+         z = pivotZ,
+         global = true,
+       )
+]
+clawPlate = subtract(plateBlank, tools = plateCuts)
+
+// ---------- jaw ----------
+// Drawn flat with the pivot at the origin, then stood up.
+// side = -1 for the left (servo-driven) jaw, +1 for the right (idler) jaw.
+// len = distance between the two points (worked out by hand to keep units simple)
+fn link(x1, y1, x2, y2, len, w, h, z0) {
+  ang = atan2(y = y2 - y1, x = x2 - x1)
+  return block(width = len + w, depth = w, height = h)
+    |> translate(z = z0, global = true)
+    |> rotate(yaw = ang, global = true)
+    |> translate(x = (x1 + x2) / 2, y = (y1 + y2) / 2, global = true)
+}
+
+fn jaw(side) {
+  // gear hub (6 mm) + finger links (5 / 4.6 mm) + teeth (5.6 mm):
+  // different thicknesses so no faces line up exactly
+  hub = rodZ(dia = 2 * gearR - 5, length = 6)
+    |> translate(z = 3, global = true)
+  link1 = link(
+    x1 = 0,
+    y1 = 0,
+    x2 = side * 5,
+    y2 = -26,
+    len = 26.48,
+    w = 10,
+    h = 5,
+    z0 = 0.5,
+  )
+  link2 = link(
+    x1 = side * 5,
+    y1 = -26,
+    x2 = -side * 9,
+    y2 = -50,
+    len = 27.78,
+    w = 7,
+    h = 4.6,
+    z0 = 0.7,
+  )
+  // left jaw teeth face +X (towards the other jaw), right jaw teeth face -X,
+  // offset half a tooth (15 deg) so they mesh
+  toothAngles = if side < 0 {
+    [-60deg, -30deg, 0deg, 30deg, 60deg]
+  } else {
+    [
+      105deg,
+      135deg,
+      165deg,
+      195deg,
+      225deg,
+      255deg
+    ]
+  }
+  teeth = map(
+    toothAngles,
+    f = fn(@a) {
+      return block(width = 5, depth = 2.8, height = 5.6)
+        |> translate(x = gearR - 0.5, z = 0.2, global = true)
+        |> rotate(yaw = a, global = true)
+    },
+  )
+  blank = union(concat([hub, link1, link2], items = teeth))
+  // left jaw bolts onto the MG90S horn: centre access hole + 2 horn-arm screws;
+  // right jaw spins on an M3 bolt
+  jawHoles = if side < 0 {
+    [
+      rodZ(dia = 5.2, length = 20),
+      rodZ(dia = 1.6, length = 20)
+        |> translate(x = -2.125, y = -8.5, global = true),
+      rodZ(dia = 1.6, length = 20)
+        |> translate(x = -3, y = -12, global = true)
+    ]
+  } else {
+    [rodZ(dia = 3.4, length = 20)]
+  }
+  return subtract(blank, tools = jawHoles)
+}
+
+// open the jaws (left turns clockwise, right counter-clockwise), stand them up,
+// and put each one on its pivot in front of the servo horn (y = 39.5 -> 45.5).
+// The right (idler) jaw stands off the plate on an M3 x 10 mm spacer.
+leftJaw = jaw(side = -1)
+  |> rotate(yaw = -jawOpen, global = true)
+  |> rotate(roll = 90deg, global = true)
+  |> translate(
+       x = -pivotX,
+       y = 45.5,
+       z = pivotZ,
+       global = true,
+     )
+rightJaw = jaw(side = 1)
+  |> rotate(yaw = jawOpen, global = true)
+  |> rotate(roll = 90deg, global = true)
+  |> translate(
+       x = pivotX,
+       y = 45.5,
+       z = pivotZ,
+       global = true,
+     )
+
+// MG90S grip servo body (reference, not printed)
+gripServo = block(width = 22.8, depth = 22.5, height = 12.2)
+  |> translate(
+       x = gripBodyX,
+       y = 24.25,
+       z = pivotZ - 6.1,
+       global = true,
+     )
+
+// ---------- move the whole claw to the wrist ----------
+wristX = shoulderX + armLength * cos(armPose)
+wristZ = shoulderZ + armLength * sin(armPose)
+
+fn toWrist(@part) {
+  return part
+    |> translate(
+         x = wristX,
+         y = -1,
+         z = wristZ,
+         global = true,
+       )
+}
+
+claw = [
+  toWrist(clawPlate)
+    |> appearance(color = "#f2f4f5", roughness = 60),
+  toWrist(leftJaw)
+    |> appearance(color = "#3cc8c0", roughness = 50),
+  toWrist(rightJaw)
+    |> appearance(color = "#3cc8c0", roughness = 50),
+  toWrist(gripServo)
+    |> appearance(color = "#33373b", roughness = 70)
+]
+
+claw
+

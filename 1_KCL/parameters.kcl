@@ -1,0 +1,83 @@
+// FLO Mini — shared parameters
+// Units: mm.  Axes: +X forward, +Y left, +Z up.  Origin = floor, between the wheels.
+// Every part fits a 256 x 256 x 256 mm print bed (Bambu X1E).
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+// ---------- base plate ----------
+export baseDepth = 250 // along X
+export baseWidth = 240 // along Y
+export baseThickness = 6
+export baseBottomZ = 55 // underside of the plate
+export baseTopZ = baseBottomZ + baseThickness // 61
+export baseCornerR = 30
+
+// ---------- drive ----------
+export wheelDia = 80
+export wheelWidth = 24
+export axleZ = wheelDia / 2 // 40
+export wheelY = baseWidth / 2 + 6 + wheelWidth / 2 // 138
+export motorDia = 25.4 // clearance for a 25 mm JGA25-370 body
+export motorCenterY = 83 // motor body centre (each side)
+export clampInnerY = 62 // clamp block centres (each side)
+export clampOuterY = 104
+export clampLength = 48 // along X
+export clampWidth = 12 // along Y
+export clampBoltX = 19
+export casterFrontX = 100
+export casterRearX = -100
+export casterBoltR = 24
+export ballDia = 25.4 // 1 in steel ball
+
+
+// ---------- bin (v0.3: front-LEFT, beside the SO-101 arm) ----------
+export binX0 = -28
+export binX1 = 90
+export binY0 = 8
+export binY1 = 114
+export binHeight = 150
+// 4 locating pegs [x, y]
+export binPegs = [
+  [binX0 + 10, binY0 + 10],
+  [binX1 - 10, binY0 + 10],
+  [binX0 + 10, binY1 - 10],
+  [binX1 - 10, binY1 - 10]
+]
+
+// ---------- SO-101 arm (v0.3: front-RIGHT) ----------
+// Where the SO-101's own origin lands on the plate; the arm faces +X (forward).
+export soX0 = 88
+export soY0 = -62
+// Its 4 base screw holes (same ones LeKiwi uses), already converted to FLO coordinates
+export soHoles = [
+  [42.2, -30.2],
+  [42.2, -93.8],
+  [112, -34.2],
+  [112, -89.8]
+]
+
+// ---------- torso ----------
+export torsoX0 = -122
+export torsoX1 = -32
+export torsoWidth = 180
+export torsoHeight = 250
+export torsoTabX = [torsoX0 + 14, torsoX1 - 14]
+export torsoTabY = 74
+
+// ---------- old v0.2 tower + arm (not used in v0.3, kept so arm.kcl / claw.kcl still open) ----------
+export shoulderX = 95
+export shoulderZ = 190
+export towerBoltX = [85, 105]
+export towerBoltY = [-56, -10.5]
+export armLength = 170
+export poseDown = -38.6deg // claw on the floor
+export poseUp = 116deg // claw over the bin
+export armPose = poseDown // pose shown in the model: poseDown or poseUp
+
+
+// ---------- head ----------
+export headTilt = 28deg // look-down angle
+export neckHeight = 40
+
+// ---------- hardware ----------
+export m3 = 3.3 // M3 clearance hole
+

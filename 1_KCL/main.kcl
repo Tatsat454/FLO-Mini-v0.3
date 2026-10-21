@@ -1,0 +1,21 @@
+// FLO Mini v0.3 — full robot assembly (SO-101 arm prototype, no head yet)
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+// Step 1: base plate (SO-101 holes front-right, bin pegs front-left)
+import "base.kcl" as base
+
+// Step 2: wheels, tires, motor straps, casters, motors
+import "drive.kcl" as drive
+
+// Step 5: bin, torso, back door
+import "body.kcl" as body
+
+// SO-101 arm (stand-in blocks)
+import "so101.kcl" as so101
+
+// Old v0.2 parts (arm.kcl, claw.kcl, head.kcl) stay in the project but aren't used.
+
+base
+drive
+body
+so101

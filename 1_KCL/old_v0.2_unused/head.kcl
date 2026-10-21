@@ -1,0 +1,213 @@
+// FLO Mini — Step 6: neck, head, phone face, sprout  (v2: no unions)
+// Head holds an iPhone 14 Pro Max sideways (slides in from the top), screen facing forward.
+// It's tilted down by headTilt so the front camera can see the claw on the floor.
+// Every printed part here is ONE shape with cuts only — no joins.
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+import * from "parameters.kcl"
+import block, roundedBlock, rodX, rodY, rodZ, holeZ, sphere from "lib.kcl"
+
+neckX = (torsoX0 + torsoX1) / 2 // -77, centre of the torso
+torsoTop = baseTopZ + torsoHeight // 311
+
+// head size (local frame: face toward +X, centre at the origin)
+headD = 72 // depth  (X)
+headW = 206 // width  (Y)
+headH = 132 // height (Z)
+headWall = 3
+headFloor = 8 // thick bottom so the neck bolts have something to bite
+
+// iPhone 14 Pro Max
+phoneW = 160.7
+phoneH = 77.6
+phoneT = 7.85
+
+// ================= NECK =================
+// One spun profile: 60 mm-wide flange (4 mm thick) + 44 mm column.
+neckSketch = sketch(on = XZ) {
+  line1 = line(start = [var 0mm, var 0mm], end = [var 30mm, var 0mm])
+  line2 = line(start = [var 30mm, var 0mm], end = [var 30mm, var 4mm])
+  coincident([line1.end, line2.start])
+  line3 = line(start = [var 30mm, var 4mm], end = [var 22mm, var 4mm])
+  coincident([line2.end, line3.start])
+  line4 = line(start = [var 22mm, var 4mm], end = [var 22mm, var 70mm])
+  coincident([line3.end, line4.start])
+  line5 = line(start = [var 22mm, var 70mm], end = [var 0mm, var 70mm])
+  coincident([line4.end, line5.start])
+  line6 = line(start = [var 0mm, var 70mm], end = [var 0mm, var 0mm])
+  coincident([line5.end, line6.start])
+  coincident([line6.end, line1.start])
+}
+neckRegion = region(segments = [neckSketch.line1, neckSketch.line2])
+neckBlank = revolve(neckRegion, axis = Y, angle = 360deg)
+hide(neckSketch)
+
+// Slice the top off at the head tilt angle (plane passes through the axis at neckHeight)
+neckTopCut = block(width = 300, depth = 300, height = 100)
+  |> rotate(pitch = headTilt, global = true)
+  |> translate(z = neckHeight, global = true)
+
+// 3 head bolts, drilled square to the tilted top face
+fn tiltedBolt(a) {
+  return rodZ(dia = m3, length = 40)
+    |> translate(x = 16 * cos(a), y = 16 * sin(a), global = true)
+    |> rotate(pitch = headTilt, global = true)
+    |> translate(z = neckHeight, global = true)
+}
+
+neckCuts = [
+  neckTopCut,
+  rodZ(dia = 18, length = 200), // cable bore
+  // 3 bolts down into the torso roof (outside the column, through the flange)
+  holeZ(x = 26, y = 0, z = 2, dia = m3),
+  holeZ(x = 26 * cos(120deg), y = 26 * sin(120deg), z = 2, dia = m3),
+  holeZ(x = 26 * cos(240deg), y = 26 * sin(240deg), z = 2, dia = m3),
+  tiltedBolt(a = 60deg),
+  tiltedBolt(a = 180deg),
+  tiltedBolt(a = 300deg)
+]
+neck = subtract([neckBlank], tools = neckCuts)
+  |> translate(x = neckX, z = torsoTop, global = true)
+  |> appearance(color = "#f2f4f5", roughness = 60)
+
+// ================= HEAD =================
+// A box rounded on its 4 long (side-to-side) edges: built standing up, then laid on its side.
+fn capsuleBox(d, w, h, r) {
+  return roundedBlock(width = d, depth = h, height = w, cornerR = r)
+    |> translate(z = -w / 2, global = true)
+    |> rotate(roll = 90deg, global = true)
+}
+
+headOuter = capsuleBox(d = headD, w = headW, h = headH, r = 30)
+
+// phone slot: front face of the phone sits 2.6 mm behind the head's front
+slotT = phoneT + 0.9
+slotFrontX = headD / 2 - 2.6 // 33.4
+slotBackX = slotFrontX - slotT // 24.65
+lipBackX = slotBackX - 3.9 // 20.75, the 3.9 mm lip behind the phone
+
+// Hollow behind the lip (keeps a 3 mm shell, an 8 mm floor, and the solid front
+// section that holds the phone). Built as its own box and moved into place.
+cavityFrontX = lipBackX
+cavityBackX = -headD / 2 + headWall
+cavityTopZ = headH / 2 - headWall
+cavityBottomZ = -headH / 2 + headFloor
+cavity = capsuleBox(
+  d = cavityFrontX - cavityBackX,
+  w = headW - 2 * headWall,
+  h = cavityTopZ - cavityBottomZ,
+  r = 26, // keeps the shell at least ~2.5 mm thick around the rounded edges
+)
+  |> translate(x = (cavityFrontX + cavityBackX) / 2, z = (cavityTopZ + cavityBottomZ) / 2, global = true)
+
+// screen / camera windows: rounded rectangles with a 3 mm lip on every edge
+fn window(w, h, cx) {
+  return roundedBlock(width = h, depth = w, height = 10, cornerR = 9)
+    |> translate(z = -5, global = true)
+    |> rotate(pitch = 90deg, global = true)
+    |> translate(x = cx, global = true)
+}
+
+headCuts = [
+  cavity,
+  // phone slot, open to the top for sliding the phone in
+  block(width = slotT, depth = phoneW + 1.8, height = headH)
+    |> translate(x = (slotFrontX + slotBackX) / 2, z = -(phoneH + 1.8) / 2, global = true),
+  // screen window through the front wall
+  window(w = phoneW - 6, h = phoneH - 6, cx = headD / 2),
+  // camera-bump window through the lip into the hollow
+  window(w = phoneW - 5, h = phoneH - 5, cx = (lipBackX + slotBackX) / 2),
+  // charging cable channels from each end of the phone out through the sides
+  block(width = 6, depth = 34, height = 14)
+    |> translate(x = (slotFrontX + slotBackX) / 2, y = 95, z = -7, global = true),
+  block(width = 6, depth = 34, height = 14)
+    |> translate(x = (slotFrontX + slotBackX) / 2, y = -95, z = -7, global = true),
+  // sprout socket in the top
+  rodZ(dia = 6.3, length = 20)
+    |> translate(z = headH / 2 - 3, global = true),
+  // neck cable hole + 3 bolts through the floor
+  rodZ(dia = 18, length = 40)
+    |> translate(x = -8, z = -headH / 2, global = true),
+  holeZ(x = -8 + 16 * cos(60deg), y = 16 * sin(60deg), z = -headH / 2, dia = m3),
+  holeZ(x = -8 + 16 * cos(180deg), y = 16 * sin(180deg), z = -headH / 2, dia = m3),
+  holeZ(x = -8 + 16 * cos(300deg), y = 16 * sin(300deg), z = -headH / 2, dia = m3)
+]
+head = subtract([headOuter], tools = headCuts)
+
+// ear pods: printed separately and glued onto the sides
+earL = rodY(dia = 40, length = 10)
+  |> translate(x = -4, y = headW / 2 + 5.2, z = 6, global = true)
+earR = rodY(dia = 40, length = 10)
+  |> translate(x = -4, y = -headW / 2 - 5.2, z = 6, global = true)
+
+// ================= PHONE + FACE (reference, not printed) =================
+phone = block(width = phoneT, depth = phoneW, height = phoneH)
+  |> translate(x = (slotFrontX + slotBackX) / 2, z = -phoneH / 2, global = true)
+eyeL = rodX(dia = 30, length = 0.6)
+  |> translate(x = slotFrontX + 0.4, y = 32, z = 6, global = true)
+eyeR = rodX(dia = 30, length = 0.6)
+  |> translate(x = slotFrontX + 0.4, y = -32, z = 6, global = true)
+pupilL = rodX(dia = 13, length = 0.6)
+  |> translate(x = slotFrontX + 1.0, y = 28, z = 3, global = true)
+pupilR = rodX(dia = 13, length = 0.6)
+  |> translate(x = slotFrontX + 1.0, y = -36, z = 3, global = true)
+smile = block(width = 0.6, depth = 22, height = 4)
+  |> translate(x = slotFrontX + 0.4, z = -20, global = true)
+
+// ================= SPROUT =================
+sproutBaseZ = headH / 2 - 9 // peg sits in the socket
+sproutPeg = rodZ(dia = 6, length = 9)
+  |> translate(z = sproutBaseZ + 4.5, global = true)
+sproutStem = rodZ(dia = 9, length = 34)
+  |> translate(z = sproutBaseZ + 9 + 16, global = true)
+leafL = sphere(dia = 20)
+  |> scale(x = 0.55, y = 1.4, z = 0.3)
+  |> rotate(roll = -30deg, global = true)
+  |> translate(y = 13, z = sproutBaseZ + 46, global = true)
+leafR = sphere(dia = 20)
+  |> scale(x = 0.55, y = 1.2, z = 0.3)
+  |> rotate(roll = 30deg, global = true)
+  |> translate(y = -11, z = sproutBaseZ + 43, global = true)
+
+// ================= PUT THE HEAD ON THE NECK =================
+// Head bottom sits on the tilted neck top; head centre is 8 mm forward of the neck,
+// everything tips forward by headTilt around the top of the neck.
+fn onNeck(@part) {
+  return part
+    |> translate(x = 8, z = headH / 2 + 0.2, global = true)
+    |> rotate(pitch = headTilt, global = true)
+    |> translate(x = neckX, z = torsoTop + neckHeight, global = true)
+}
+
+white = "#f2f4f5"
+green = "#3fb950"
+headParts = [
+  onNeck(head)
+    |> appearance(color = white, roughness = 50),
+  onNeck(earL)
+    |> appearance(color = "#3cc8c0", roughness = 50),
+  onNeck(earR)
+    |> appearance(color = "#3cc8c0", roughness = 50),
+  onNeck(phone)
+    |> appearance(color = "#111418", roughness = 20),
+  onNeck(eyeL)
+    |> appearance(color = "#ffffff", roughness = 30),
+  onNeck(eyeR)
+    |> appearance(color = "#ffffff", roughness = 30),
+  onNeck(pupilL)
+    |> appearance(color = "#111418", roughness = 30),
+  onNeck(pupilR)
+    |> appearance(color = "#111418", roughness = 30),
+  onNeck(smile)
+    |> appearance(color = "#3cc8c0", roughness = 30),
+  onNeck(sproutPeg)
+    |> appearance(color = green, roughness = 50),
+  onNeck(sproutStem)
+    |> appearance(color = green, roughness = 50),
+  onNeck(leafL)
+    |> appearance(color = green, roughness = 50),
+  onNeck(leafR)
+    |> appearance(color = green, roughness = 50)
+]
+
+concat([neck], items = headParts)

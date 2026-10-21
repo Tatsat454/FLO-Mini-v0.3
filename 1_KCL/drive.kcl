@@ -1,0 +1,198 @@
+// FLO Mini — Step 2: drive  (v2: no touching/coplanar faces in booleans)
+// 2 wheels + TPU tires, 4 motor straps, 2 ball casters, and the 2 motors (grey, for reference only).
+// Everything is placed in its assembled position.
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+import * from "parameters.kcl"
+import block, rodX, rodY, rodZ, holeZ, sphere from "lib.kcl"
+
+rimDia = wheelDia - 6 // 74, the TPU tire wraps this
+
+
+// ---------- wheel (side = 1 for left, -1 for right) ----------
+fn wheel(side) {
+  // Built along Z first, hub boss on the -Z side.
+  // Pieces overlap a little so no two faces land exactly on each other.
+  rim = rodZ(dia = rimDia, length = wheelWidth - 0.4)
+  flangeA = rodZ(dia = rimDia + 4, length = 2)
+    |> translate(z = wheelWidth / 2 - 1, global = true)
+  flangeB = rodZ(dia = rimDia + 4, length = 2)
+    |> translate(z = -wheelWidth / 2 + 1, global = true)
+  boss = rodZ(dia = 16, length = 9)
+    |> translate(z = -wheelWidth / 2 - 3.5, global = true)
+  blank = union([rim, flangeA, flangeB, boss])
+
+  windows = map(
+    [
+      0deg,
+      60deg,
+      120deg,
+      180deg,
+      240deg,
+      300deg
+    ],
+    f = fn(@a) {
+      return rodZ(dia = 18, length = wheelWidth + 6)
+        |> translate(x = 22 * cos(a), y = 22 * sin(a), global = true)
+    },
+  )
+  bore = rodZ(dia = 4.2, length = wheelWidth + 30)
+  setScrew = rodX(dia = 3.3, length = 12)
+    |> translate(x = 6, z = -wheelWidth / 2 - 4, global = true)
+  cut = subtract([blank], tools = concat(windows, items = [bore, setScrew]))
+
+  // D-flat on the 4 mm motor shaft (stays inside the wheel, no shared faces)
+  dFlat = block(width = 1, depth = 5, height = wheelWidth + 6)
+    |> translate(x = 2.1, z = -wheelWidth / 2 - 7, global = true)
+  finished = union(concat(cut, items = [dFlat]))
+
+  // Turn the axis to Y (boss facing the robot) and move into place
+  return finished
+    |> rotate(roll = -side * 90deg, global = true)
+    |> translate(y = side * wheelY, z = axleZ, global = true)
+    |> appearance(color = "#f2f4f5", roughness = 60)
+}
+
+fn tire(side) {
+  outer = rodZ(dia = wheelDia + 2, length = wheelWidth - 4)
+  inner = rodZ(dia = rimDia - 0.4, length = wheelWidth + 10)
+  return subtract([outer], tools = [inner])
+    |> rotate(roll = 90deg, global = true)
+    |> translate(y = side * wheelY, z = axleZ, global = true)
+    |> appearance(color = "#3a3f44", roughness = 90)
+}
+
+// ---------- motor strap: U-clamp under each clamp block ----------
+// Drawn as one U-shaped outline (inner R 12.7, outer R 16.7, ears 48 x 4)
+// so no boolean cut is needed. Numbers are for motorDia = 25.4.
+fn motorStrap(y) {
+  strapSketch = sketch(on = XY) {
+    line1 = line(start = [var -24mm, var 0mm], end = [var -12.7mm, var 0mm])
+    arc1 = arc(start = [var -12.7mm, var 0mm], end = [var 12.7mm, var 0mm], center = [var 0mm, var 0mm])
+    coincident([line1.end, arc1.start])
+    line2 = line(start = [var 12.7mm, var 0mm], end = [var 24mm, var 0mm])
+    coincident([arc1.end, line2.start])
+    line3 = line(start = [var 24mm, var 0mm], end = [var 24mm, var -4mm])
+    coincident([line2.end, line3.start])
+    line4 = line(start = [var 24mm, var -4mm], end = [var 16.214mm, var -4mm])
+    coincident([line3.end, line4.start])
+    arc2 = arc(start = [var -16.214mm, var -4mm], end = [var 16.214mm, var -4mm], center = [var 0mm, var 0mm])
+    coincident([line4.end, arc2.end])
+    line5 = line(start = [var -16.214mm, var -4mm], end = [var -24mm, var -4mm])
+    coincident([arc2.start, line5.start])
+    line6 = line(start = [var -24mm, var -4mm], end = [var -24mm, var 0mm])
+    coincident([line5.end, line6.start])
+    coincident([line6.end, line1.start])
+  }
+  strapRegion = region(segments = [strapSketch.line1, strapSketch.arc1])
+  // Extrude up (+Z), centre it, then stand the outline up in the XZ plane
+  strapBlank = extrude(strapRegion, length = clampWidth)
+    |> translate(z = -clampWidth / 2, global = true)
+    |> rotate(roll = 90deg, global = true)
+  hide(strapSketch)
+
+  bolts = [
+    holeZ(
+      x = clampBoltX,
+      y = 0,
+      z = 0,
+      dia = m3,
+    ),
+    holeZ(
+      x = -clampBoltX,
+      y = 0,
+      z = 0,
+      dia = m3,
+    )
+  ]
+  return subtract([strapBlank], tools = bolts)
+    |> translate(y = y, z = axleZ, global = true)
+    |> appearance(color = "#d9dde0", roughness = 60)
+}
+
+// ---------- ball caster: snap a 1 in steel ball in from below ----------
+casterBottomZ = 8
+casterHeight = baseBottomZ - casterBottomZ - 0.4 // body stops just under the flange top
+
+
+fn caster(cx) {
+  body = rodZ(dia = 36, length = casterHeight)
+    |> translate(z = casterBottomZ + casterHeight / 2, global = true)
+  flange = rodZ(dia = 60, length = 4)
+    |> translate(z = baseBottomZ - 2, global = true)
+  blank = union([body, flange])
+  ballPocket = rodZ(dia = ballDia + 0.8, length = 30)
+    |> translate(z = ballDia / 2 + 15, global = true)
+  lipOpening = rodZ(dia = 23.6, length = 12)
+    |> translate(z = casterBottomZ, global = true)
+  slitA = block(width = 1.5, depth = 40, height = 10)
+    |> translate(z = casterBottomZ - 1, global = true)
+  slitB = block(width = 40, depth = 1.5, height = 10)
+    |> translate(z = casterBottomZ - 1, global = true)
+  bolts = [
+    holeZ(
+      x = 0,
+      y = casterBoltR,
+      z = baseBottomZ,
+      dia = m3,
+    ),
+    holeZ(
+      x = casterBoltR * cos(210deg),
+      y = casterBoltR * sin(210deg),
+      z = baseBottomZ,
+      dia = m3,
+    ),
+    holeZ(
+      x = casterBoltR * cos(330deg),
+      y = casterBoltR * sin(330deg),
+      z = baseBottomZ,
+      dia = m3,
+    )
+  ]
+  housing = subtract([blank], tools = concat([ballPocket, lipOpening, slitA, slitB], items = bolts))
+    |> translate(x = cx, global = true)
+    |> appearance(color = "#d9dde0", roughness = 60)
+  ball = sphere(dia = ballDia)
+    |> translate(x = cx, z = ballDia / 2, global = true)
+    |> appearance(color = "#b8bec4", metalness = 90, roughness = 20)
+  return [housing, ball]
+}
+
+// ---------- reference motors (not printed) ----------
+fn motor(side) {
+  body = rodY(dia = 25, length = 70)
+    |> translate(y = side * motorCenterY, z = axleZ, global = true)
+  shaft = rodY(dia = 4, length = 14)
+    |> translate(y = side * (motorCenterY + 41), z = axleZ, global = true)
+  return union([body, shaft])
+    |> appearance(color = "#9aa1a8", metalness = 80, roughness = 30)
+}
+
+// ---------- place everything ----------
+leftWheel = wheel(side = 1)
+rightWheel = wheel(side = -1)
+leftTire = tire(side = 1)
+rightTire = tire(side = -1)
+straps = [
+  motorStrap(y = clampInnerY),
+  motorStrap(y = clampOuterY),
+  motorStrap(y = -clampInnerY),
+  motorStrap(y = -clampOuterY)
+]
+frontCaster = caster(cx = casterFrontX)
+rearCaster = caster(cx = casterRearX)
+leftMotor = motor(side = 1)
+rightMotor = motor(side = -1)
+
+concat(
+  [
+    leftWheel,
+    rightWheel,
+    leftTire,
+    rightTire,
+    leftMotor,
+    rightMotor
+  ],
+  items = concat(straps, items = concat(frontCaster, items = rearCaster)),
+)
+

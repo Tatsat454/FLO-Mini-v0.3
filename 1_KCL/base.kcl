@@ -1,0 +1,104 @@
+// FLO Mini — Step 1: base plate  (v0.3: SO-101 mount front-right, bin front-left)
+// 250 x 240 x 6 mm plate (prints flat) with 4 motor clamp blocks underneath.
+// Each cut group is its own statement, so an engine error points at the exact group.
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+import * from "parameters.kcl"
+import block, roundedBlock, rodY, holeZ from "lib.kcl"
+
+zc = baseBottomZ + baseThickness / 2 // hole cutters are centred in the plate, 40 mm tall
+
+
+// ---------- 1. plate ----------
+plate = roundedBlock(
+  width = baseDepth,
+  depth = baseWidth,
+  height = baseThickness,
+  cornerR = baseCornerR,
+)
+  |> translate(z = baseBottomZ, global = true)
+
+// ---------- 2. mounting holes (torso, bin pegs, SO-101 arm, wires) ----------
+mountingHoles = [
+  holeZ(x = torsoTabX[0], y = torsoTabY, z = zc, dia = m3),
+  holeZ(x = torsoTabX[0], y = -torsoTabY, z = zc, dia = m3),
+  holeZ(x = torsoTabX[1], y = torsoTabY, z = zc, dia = m3),
+  holeZ(x = torsoTabX[1], y = -torsoTabY, z = zc, dia = m3),
+  holeZ(x = binPegs[0][0], y = binPegs[0][1], z = zc, dia = 6.5),
+  holeZ(x = binPegs[1][0], y = binPegs[1][1], z = zc, dia = 6.5),
+  holeZ(x = binPegs[2][0], y = binPegs[2][1], z = zc, dia = 6.5),
+  holeZ(x = binPegs[3][0], y = binPegs[3][1], z = zc, dia = 6.5),
+  // SO-101 arm base: 4 x M3 x 25, nuts under the plate
+  holeZ(x = soHoles[0][0], y = soHoles[0][1], z = zc, dia = m3),
+  holeZ(x = soHoles[1][0], y = soHoles[1][1], z = zc, dia = m3),
+  holeZ(x = soHoles[2][0], y = soHoles[2][1], z = zc, dia = m3),
+  holeZ(x = soHoles[3][0], y = soHoles[3][1], z = zc, dia = m3),
+  holeZ(x = -45, y = 40, z = zc, dia = 14),
+  holeZ(x = -45, y = -40, z = zc, dia = 14)
+]
+plateA = subtract([plate], tools = mountingHoles)
+
+// ---------- 3. caster bolt circles (3 bolts at 90 / 210 / 330 deg) ----------
+fn casterHoles(cx) {
+  return [
+    holeZ(x = cx, y = casterBoltR, z = zc, dia = m3),
+    holeZ(x = cx + casterBoltR * cos(210deg), y = casterBoltR * sin(210deg), z = zc, dia = m3),
+    holeZ(x = cx + casterBoltR * cos(330deg), y = casterBoltR * sin(330deg), z = zc, dia = m3)
+  ]
+}
+plateB = subtract(plateA, tools = concat(casterHoles(cx = casterFrontX), items = casterHoles(cx = casterRearX)))
+
+// ---------- 4. battery strap slots + weight-saving windows ----------
+slots = [
+  block(width = 4, depth = 60, height = 40)
+    |> translate(x = -65, z = zc - 20, global = true),
+  block(width = 4, depth = 60, height = 40)
+    |> translate(x = -40, z = zc - 20, global = true),
+  // one weight-saving window under the bin (the right side carries the arm bolts)
+  roundedBlock(width = 60, depth = 30, height = 40, cornerR = 8)
+    |> translate(x = 22, y = 40, z = zc - 20, global = true)
+]
+plateC = subtract(plateB, tools = slots)
+
+// ---------- 5. motor clamp blocks (each cut on its own) ----------
+// Blocks run from 1 mm above the motor axis up into the plate (z = 41 -> 56).
+// The 1 mm gap lets the strap squeeze the motor when tightened.
+clampBottomZ = axleZ + 1
+clampHeight = baseBottomZ + 1 - clampBottomZ
+
+fn clampBlock(y) {
+  raw = block(width = clampLength, depth = clampWidth, height = clampHeight)
+    |> translate(y = y, z = clampBottomZ, global = true)
+  saddle = rodY(dia = motorDia, length = clampWidth + 8)
+    |> translate(y = y, z = axleZ, global = true)
+  return subtract([raw], tools = [saddle])
+}
+clampLeftInner = clampBlock(y = clampInnerY)
+clampLeftOuter = clampBlock(y = clampOuterY)
+clampRightInner = clampBlock(y = -clampInnerY)
+clampRightOuter = clampBlock(y = -clampOuterY)
+
+// ---------- 6. join blocks to the plate ----------
+baseBody = union(concat(
+  plateC,
+  items = concat(
+    clampLeftInner,
+    items = concat(clampLeftOuter, items = concat(clampRightInner, items = clampRightOuter)),
+  ),
+))
+
+// ---------- 7. clamp bolts (M3, through block and plate) ----------
+clampBolts = [
+  holeZ(x = clampBoltX, y = clampInnerY, z = 48, dia = m3),
+  holeZ(x = -clampBoltX, y = clampInnerY, z = 48, dia = m3),
+  holeZ(x = clampBoltX, y = clampOuterY, z = 48, dia = m3),
+  holeZ(x = -clampBoltX, y = clampOuterY, z = 48, dia = m3),
+  holeZ(x = clampBoltX, y = -clampInnerY, z = 48, dia = m3),
+  holeZ(x = -clampBoltX, y = -clampInnerY, z = 48, dia = m3),
+  holeZ(x = clampBoltX, y = -clampOuterY, z = 48, dia = m3),
+  holeZ(x = -clampBoltX, y = -clampOuterY, z = 48, dia = m3)
+]
+base = subtract(baseBody, tools = clampBolts)
+  |> appearance(color = "#f2f4f5", roughness = 60)
+
+base

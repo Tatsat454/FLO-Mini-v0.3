@@ -1,0 +1,148 @@
+// FLO Mini — helper shapes used by every part
+// block / roundedBlock: centred on X and Y, sitting on Z = 0.
+// rodX / rodY / rodZ: cylinders centred on the origin, axis along X / Y / Z.
+@settings(defaultLengthUnit = mm, kclVersion = 2.0)
+
+// Plain box: width along X, depth along Y, height along Z.
+export fn block(width, depth, height) {
+  boxSketch = sketch(on = XY) {
+    line1 = line(start = [var 0mm, var 0mm], end = [var 10mm, var 0mm])
+    line2 = line(start = [var 10mm, var 0mm], end = [var 10mm, var 10mm])
+    coincident([line1.end, line2.start])
+    line3 = line(start = [var 10mm, var 10mm], end = [var 0mm, var 10mm])
+    coincident([line2.end, line3.start])
+    line4 = line(start = [var 0mm, var 10mm], end = [var 0mm, var 0mm])
+    coincident([line3.end, line4.start])
+    coincident([line4.end, line1.start])
+    coincident([line1.start, ORIGIN])
+    horizontal(line1)
+    vertical(line2)
+    horizontal(line3)
+    vertical(line4)
+    horizontalDistance([line1.start, line1.end]) == width
+    verticalDistance([line2.start, line2.end]) == depth
+  }
+  boxRegion = region(segments = [boxSketch.line1, boxSketch.line2])
+  boxSolid = extrude(boxRegion, length = height)
+  hide(boxSketch)
+  return translate(
+    boxSolid,
+    x = -width / 2,
+    y = -depth / 2,
+    global = true,
+  )
+}
+
+// Box with its 4 vertical edges rounded.
+export fn roundedBlock(width, depth, height, cornerR) {
+  boxSketch = sketch(on = XY) {
+    line1 = line(start = [var 0mm, var 0mm], end = [var 10mm, var 0mm])
+    line2 = line(start = [var 10mm, var 0mm], end = [var 10mm, var 10mm])
+    coincident([line1.end, line2.start])
+    line3 = line(start = [var 10mm, var 10mm], end = [var 0mm, var 10mm])
+    coincident([line2.end, line3.start])
+    line4 = line(start = [var 0mm, var 10mm], end = [var 0mm, var 0mm])
+    coincident([line3.end, line4.start])
+    coincident([line4.end, line1.start])
+    coincident([line1.start, ORIGIN])
+    horizontal(line1)
+    vertical(line2)
+    horizontal(line3)
+    vertical(line4)
+    horizontalDistance([line1.start, line1.end]) == width
+    verticalDistance([line2.start, line2.end]) == depth
+  }
+  boxRegion = region(segments = [boxSketch.line1, boxSketch.line2])
+  boxSolid = extrude(boxRegion, length = height)
+    |> fillet(
+         radius = cornerR,
+         edges = [
+           {
+             sideFaces = [
+               boxRegion.tags.line1,
+               boxRegion.tags.line2
+             ]
+           },
+           {
+             sideFaces = [
+               boxRegion.tags.line2,
+               boxRegion.tags.line3
+             ]
+           },
+           {
+             sideFaces = [
+               boxRegion.tags.line3,
+               boxRegion.tags.line4
+             ]
+           },
+           {
+             sideFaces = [
+               boxRegion.tags.line4,
+               boxRegion.tags.line1
+             ]
+           }
+         ],
+       )
+  hide(boxSketch)
+  return translate(
+    boxSolid,
+    x = -width / 2,
+    y = -depth / 2,
+    global = true,
+  )
+}
+
+// Cylinder along Z, centred on the origin (exact length).
+export fn rodZ(dia, length) {
+  rodSketch = sketch(on = XY) {
+    circle1 = circle(start = [var 5mm, var 0mm], center = [var 0mm, var 0mm])
+    coincident([circle1.center, ORIGIN])
+    radius(circle1) == dia / 2
+  }
+  rodRegion = region(segments = [rodSketch.circle1])
+  rodSolid = extrude(rodRegion, length = length)
+    |> translate(z = -length / 2, global = true)
+  hide(rodSketch)
+  return rodSolid
+}
+
+// Cylinder along Y, centred on the origin.
+export fn rodY(dia, length) {
+  return rodZ(dia = dia, length = length)
+    |> rotate(roll = 90deg, global = true)
+}
+
+// Cylinder along X, centred on the origin.
+export fn rodX(dia, length) {
+  return rodZ(dia = dia, length = length)
+    |> rotate(pitch = 90deg, global = true)
+}
+
+// Sphere centred on the origin (half-disc revolved 360 deg).
+export fn sphere(dia) {
+  ballSketch = sketch(on = XZ) {
+    line1 = line(start = [var 0mm, var -5mm], end = [var 0mm, var 5mm])
+    arc1 = arc(start = [var 0mm, var 5mm], end = [var 0mm, var -5mm], center = [var 0mm, var 0mm])
+    coincident([line1.end, arc1.start])
+    coincident([arc1.end, line1.start])
+    coincident([arc1.center, ORIGIN])
+    vertical(line1)
+    radius(arc1) == dia / 2
+  }
+  ballRegion = region(segments = [ballSketch.line1, ballSketch.arc1])
+  ball = revolve(ballRegion, axis = Y, angle = 360deg)
+  hide(ballSketch)
+  return ball
+}
+
+// Vertical through-hole cutter at (x, y), centred on height z.
+export fn holeZ(x, y, z, dia) {
+  return rodZ(dia = dia, length = 40)
+    |> translate(
+         x = x,
+         y = y,
+         z = z,
+         global = true,
+       )
+}
+
